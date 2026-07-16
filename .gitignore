@@ -1,0 +1,49 @@
+# Data files (downloaded at runtime)
+data/raw/
+data/processed/
+*.parquet
+
+# Keep directory structure
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# Static site data (committed for GitHub Pages)
+!docs/data/*.json
+!docs/data/*.geojson
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+
+# Claude Code
+CLAUDE.md
+.claude/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# uv
+uv.lock

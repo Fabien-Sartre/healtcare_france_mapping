@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Accès aux soins en France — densité de praticiens par commune</title>
+<meta name="description" content="Où l'offre de soins manque-t-elle en France ? Densité de praticiens estimée autour de chaque commune, profession par profession, à partir de données publiques (RPPS, INSEE).">
+
+<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/deck.gl@9.1.4/dist.min.js"></script>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+    <div class="header-inner">
+        <div class="brand"><span class="cross"></span> <span>Accès aux soins · France</span></div>
+        <nav class="tab-nav" role="tablist">
+            <button class="tab-btn active" data-tab="diagnostic" role="tab" aria-selected="true">Diagnostic</button>
+            <button class="tab-btn" data-tab="population" role="tab" aria-selected="false">Population</button>
+            <button class="tab-btn" data-tab="offre" role="tab" aria-selected="false">Offre de soins</button>
+            <button class="tab-btn" data-tab="methode" role="tab" aria-selected="false">Méthode</button>
+        </nav>
+    </div>
+</header>
+
+<!-- ============ DIAGNOSTIC (flagship) ============ -->
+<section class="panel active" id="panel-diagnostic" role="tabpanel">
+    <div class="wrap">
+
+        <div class="hero">
+            <div>
+                <h1>Où l'offre de soins est-elle la plus faible, et où une installation serait-elle la plus utile&nbsp;?</h1>
+                <p class="lead">En croisant le répertoire des professionnels de santé (RPPS) et la population INSEE, l'outil estime la <b>densité de praticiens autour de chaque commune</b>, profession par profession. Les bassins les plus en deçà de la moyenne nationale sont classés, avec pour chacun le nombre de praticiens manquants. Approche inspirée de l'accessibilité potentielle localisée (APL) de la DREES, sans s'y substituer.</p>
+            </div>
+            <aside class="figures">
+                <div class="figure lead-fig">
+                    <div class="n" id="fig-pop">—</div>
+                    <div class="l" id="fig-pop-lbl">habitants exposés à une faible densité</div>
+                </div>
+                <div class="figure sub-fig">
+                    <div class="n" id="fig-pct">—</div>
+                    <div class="l">de la population métropolitaine</div>
+                </div>
+                <div class="figure sub-fig">
+                    <div class="n" id="fig-nat">—</div>
+                    <div class="l" id="fig-nat-lbl">praticiens / 100 000 hab. en moyenne nationale</div>
+                </div>
+                <p class="note">Densité estimée dans un rayon de 15 km à vol d'oiseau (≈ 15 min), inférieure à 70 % de la moyenne nationale de la profession.</p>
+            </aside>
+        </div>
+
+        <div class="selector">
+            <span class="lbl">Profession analysée</span>
+            <div id="pro-buttons" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+        </div>
+
+        <div class="map-block">
+            <div class="map-container" id="map-access"></div>
+            <div class="map-overlay">
+                <div class="ov-title" id="ov-title">Densité de médecins par commune</div>
+                <div class="ramp-bar"></div>
+                <div class="ramp-labels"><span>Faible densité</span><span>Moyenne</span><span>Forte densité</span></div>
+                <div class="ov-marks">
+                    <div class="ov-mark"><span class="ov-badge">1</span> Zones prioritaires d'implantation, numérotées comme le tableau</div>
+                </div>
+            </div>
+            <div class="map-hint">Cliquez n'importe où pour étudier un emplacement</div>
+
+            <aside class="site-panel" id="site-panel" hidden>
+                <button class="site-close" id="site-close" aria-label="Fermer">×</button>
+                <div class="site-eyebrow">Emplacement étudié</div>
+                <div class="site-place" id="site-place">—</div>
+                <div class="site-radius">
+                    <label>Rayon&nbsp;: <strong id="site-radius-val">15</strong> km</label>
+                    <input type="range" class="range-slider" id="site-radius" min="5" max="30" value="15" step="1">
+                </div>
+                <div class="site-readout" id="site-readout"></div>
+            </aside>
+        </div>
+
+        <section class="basins">
+            <div class="basins-head">
+                <div>
+                    <h2 id="basins-title">Zones prioritaires d'implantation</h2>
+                    <div class="sub" id="basins-sub">Communes classées par déficit d'offre — rayon de 15 km.</div>
+                </div>
+                <div class="toggle" id="basins-toggle">
+                    <button class="on" data-mode="by_population">Le plus d'habitants en faible densité</button>
+                    <button data-mode="by_scarcity">Densité la plus faible</button>
+                </div>
+            </div>
+            <table class="basins-table">
+                <thead>
+                    <tr><th></th><th>Commune</th><th>Population (15 km)</th><th>dont faible densité</th><th>Praticiens manquants</th><th id="th-density">Densité /100k</th></tr>
+                </thead>
+                <tbody id="basins-body"></tbody>
+            </table>
+        </section>
+
+    </div>
+
+    <footer class="site-footer">
+        <div class="wrap">
+            Sources : RPPS / Annuaire santé (data.gouv.fr), population INSEE (mailles), contours IGN. Densité estimée dans un rayon de 15 km à vol d'oiseau (proxy d'environ 15 min de trajet), comparée à la moyenne nationale de chaque profession ; seuil de faible densité : 70 %. Approche inspirée de l'indicateur APL de la DREES, sans s'y substituer. Données publiques, France métropolitaine.
+        </div>
+    </footer>
+</section>
+
+<!-- ============ POPULATION (3D) ============ -->
+<section class="panel" id="panel-population" role="tabpanel">
+    <div class="pop-intro wrap">
+        <h2>Où vit la population</h2>
+        <p>Chaque colonne représente une maille de population ; sa hauteur est proportionnelle au nombre d'habitants. La vue donne à voir la concentration de la population sur le territoire — la demande de soins que l'offre doit couvrir.</p>
+    </div>
+    <div class="map-container" id="map-population">
+        <div class="map-overlay">
+            <div class="ov-title">Population par maille</div>
+            <div class="ramp-bar ramp-pop"></div>
+            <div class="ramp-labels"><span>Faible</span><span>Élevée</span></div>
+        </div>
+        <div class="map-hint">Clic droit maintenu pour pivoter la vue</div>
+    </div>
+</section>
+
+<!-- ============ OFFRE DE SOINS (établissements) ============ -->
+<section class="panel" id="panel-offre" role="tabpanel">
+    <div class="split">
+        <aside class="sidebar">
+            <div class="sidebar-section">
+                <h3>Repères</h3>
+                <div class="kpi-row">
+                    <div class="kpi-card"><div class="kpi-value" id="kpi-ctr-total">—</div><div class="kpi-label">Établissements</div></div>
+                    <div class="kpi-card"><div class="kpi-value" id="kpi-ctr-public">—</div><div class="kpi-label">Public</div></div>
+                </div>
+            </div>
+            <div class="sidebar-section">
+                <h3>Statut</h3>
+                <div class="checkbox-list" id="filter-ctr-class">
+                    <label class="checkbox-item"><input type="checkbox" value="Public" checked> <span class="checkbox-swatch" style="background:rgb(30,75,58)"></span> Public</label>
+                    <label class="checkbox-item"><input type="checkbox" value="Privé" checked> <span class="checkbox-swatch" style="background:rgb(219,90,75)"></span> Privé</label>
+                </div>
+            </div>
+            <div class="sidebar-section">
+                <h3>Catégorie</h3>
+                <div class="filter-actions">
+                    <button class="filter-action-btn" onclick="window.ctrMap && window.ctrMap.selectAllCats()">Tout</button>
+                    <button class="filter-action-btn" onclick="window.ctrMap && window.ctrMap.selectNoneCats()">Aucun</button>
+                </div>
+                <div class="checkbox-list" id="filter-ctr-categories"></div>
+            </div>
+            <div class="sidebar-section">
+                <h3>Légende</h3>
+                <div class="legend-list">
+                    <div class="legend-item"><span class="legend-swatch" style="background:rgb(30,75,58)"></span> Public</div>
+                    <div class="legend-item"><span class="legend-swatch" style="background:rgb(219,90,75)"></span> Privé</div>
+                </div>
+            </div>
+        </aside>
+        <div class="map-container" id="map-centers"></div>
+    </div>
+</section>
+
+<!-- ============ MÉTHODE ============ -->
+<section class="panel" id="panel-methode" role="tabpanel">
+    <div class="wrap prose">
+        <div class="eyebrow">Méthode &amp; limites</div>
+        <h2>Ce que mesure l'outil</h2>
+        <p>Pour chaque maille de population (INSEE), on compte les praticiens d'une profession donnée présents dans un rayon de 15 km, rapportés à la population de ce même rayon. On obtient une <b>densité locale</b> exprimée pour 100 000 habitants, que l'on compare à la moyenne nationale de la profession. Une zone est dite « à faible densité » lorsqu'elle passe sous 70 % de cette moyenne.</p>
+
+        <h2>Les deux classements</h2>
+        <ul>
+            <li><b>Le plus d'habitants en faible densité</b> — les communes dont le rayon de 15 km contient le plus grand nombre d'habitants sous le seuil. Ce tri fait remonter les couronnes péri-urbaines, là où le volume de population concernée est le plus élevé.</li>
+            <li><b>Densité la plus faible</b> — les communes dont la densité locale est la plus basse par habitant. Ce tri fait remonter les zones rurales les plus dépourvues.</li>
+        </ul>
+        <p>Pour chaque bassin, le tableau indique le nombre de praticiens supplémentaires nécessaires pour repasser le seuil de 70&nbsp;% de la moyenne nationale. Le panneau « emplacement étudié » donne le même chiffre pour n'importe quel point cliqué sur la carte, avec l'effet d'une installation sur le ratio habitants par praticien.</p>
+
+        <h2>Limites assumées</h2>
+        <ul>
+            <li>La distance est mesurée <b>à vol d'oiseau</b> ; elle approxime un temps de trajet sans tenir compte du réseau routier ni du relief.</li>
+            <li>Le RPPS compte les praticiens par commune d'exercice, <b>sans pondérer par leur activité</b> (temps de travail, patientèle), contrairement à l'indicateur APL de la DREES.</li>
+            <li>La profession « Médecin » regroupe généralistes et spécialistes ; la comparaison locale/nationale reste cohérente car elle utilise la même définition des deux côtés.</li>
+        </ul>
+
+        <h2>Sources</h2>
+        <ul>
+            <li>RPPS — Annuaire santé, extraction en libre accès (data.gouv.fr).</li>
+            <li>Population — recensement INSEE, agrégée en mailles.</li>
+            <li>Établissements — FINESS (data.gouv.fr). Contours — IGN.</li>
+        </ul>
+    </div>
+</section>
+
+<div id="tooltip" class="map-tooltip"></div>
+<div id="loading-overlay" class="loading-overlay"><div class="loading-spinner"></div><span class="loading-text">Chargement des données…</span></div>
+
+<script src="js/app.js"></script>
+<script src="js/map-access.js"></script>
+<script src="js/map-population.js"></script>
+<script src="js/map-centers.js"></script>
+</body>
+</html>
